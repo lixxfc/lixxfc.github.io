@@ -1916,40 +1916,79 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Auth state listener
-db.auth.onAuthStateChange(async (event, session) => {
-  if (session && session.user) {
-    currentUser = session.user;
-    showLoading();
-    await loadUserData();
+// --- Robust sign-in flow ---
+let appShown = false;
+let signedInHandled = false;
+
+async function enterApp(session) {
+  if (appShown) { currentUser = session.user; return; }
+  currentUser = session.user;
+  showLoading();
+  try {
+    // load with 7s timeout, fall back to empty state so UI never gets stuck
+    await Promise.race([
+      loadUserData(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('load timeout')), 7000))
+    ]);
+  } catch (err) {
+    console.error('[pallet] data load failed:', err);
+    if (!state) state = { params: { buyPrice: 245, sellPrice: 265, myFee: 31, hugoFee: 7, vFee: 2 }, daily: [], customers: [] };
+    setSyncStatus('error');
+  }
+  try {
     document.getElementById('d-date').value = new Date().toISOString().slice(0, 10);
     renderAll();
-    showApp();
-  } else {
-    currentUser = null;
-    state = null;
+  } catch (err) {
+    console.error('[pallet] render failed:', err);
+  }
+  showApp();
+  appShown = true;
+}
+
+function leaveApp() {
+  currentUser = null;
+  state = null;
+  appShown = false;
+  showAuth();
+}
+
+// Auth state listener — fires on INITIAL_SESSION, SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED
+db.auth.onAuthStateChange((event, session) => {
+  console.log('[pallet] auth event:', event, !!session);
+  if (session && session.user) {
+    signedInHandled = true;
+    enterApp(session);
+  } else if (event === 'SIGNED_OUT') {
+    leaveApp();
+  } else if (event === 'INITIAL_SESSION') {
+    // No session on initial load
+    signedInHandled = true;
     showAuth();
   }
 });
 
-// Check session on load
-(async () => {
+// Belt-and-suspenders: if onAuthStateChange never fires in 3s, check session ourselves
+setTimeout(async () => {
+  if (signedInHandled) return;
+  console.warn('[pallet] auth listener silent, fallback check');
   try {
     const { data: { session } } = await db.auth.getSession();
-    if (!session) {
-      showAuth();
-    }
-    // If session exists, onAuthStateChange will handle it (or fire once with INITIAL_SESSION)
-    // But also handle case where it doesn't fire promptly
-    setTimeout(() => {
-      if (document.getElementById('loading-screen') && !document.getElementById('loading-screen').classList.contains('hide') && !currentUser) {
-        showAuth();
-      }
-    }, 2000);
+    if (session && session.user) enterApp(session);
+    else showAuth();
   } catch (e) {
+    console.error('[pallet] getSession failed:', e);
     showAuth();
   }
-})();
+}, 3000);
+
+// Final safety net: force showAuth after 10s if still loading
+setTimeout(() => {
+  const ls = document.getElementById('loading-screen');
+  if (ls && !ls.classList.contains('hide')) {
+    console.warn('[pallet] stuck on loading, forcing auth screen');
+    showAuth();
+  }
+}, 10000);
 </script>
 </body>
 </html>
