@@ -590,6 +590,47 @@ select option { background: var(--bg-2); color: var(--text); }
 .insight-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
 .insight-text { font-size: 12px; color: var(--text-dim); line-height: 1.6; }
 
+/* preview-box — live calc preview for pickup form */
+.preview-box {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(5, 6, 15, 0.5);
+  border: 1px solid var(--stroke);
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text-dim);
+  display: none;
+}
+.preview-box.show { display: block; }
+.preview-box .pv-row { display: flex; justify-content: space-between; gap: 12px; }
+.preview-box .pv-row + .pv-row { margin-top: 4px; }
+.preview-box .pv-k { color: var(--text-dim); font-size: 12px; }
+.preview-box .pv-v { color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.preview-box .pv-v.pos { color: var(--green); }
+.preview-box .pv-v.neg { color: var(--rose); }
+.preview-box .pv-v.warn { color: var(--amber); }
+.preview-box.danger {
+  background: rgba(251, 113, 133, 0.08);
+  border-color: rgba(251, 113, 133, 0.45);
+  box-shadow: 0 0 24px rgba(251, 113, 133, 0.15);
+}
+.preview-box.danger .pv-warning {
+  margin-top: 8px; padding: 8px 12px;
+  background: rgba(251, 113, 133, 0.15);
+  border: 1px solid rgba(251, 113, 133, 0.4);
+  border-radius: 8px;
+  color: var(--rose);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+}
+.preview-box .pv-warning { display: none; }
+.preview-box.danger .pv-warning { display: block; }
+
+/* Hide utility for dynamic ledger form rows */
+.row-hidden { display: none !important; }
+
 .ai-output {
   padding: 18px;
   border-radius: 12px;
@@ -861,7 +902,7 @@ select option { background: var(--bg-2); color: var(--text); }
 
     <div class="nav-section-title">主要</div>
     <div class="nav-item active" data-view="dashboard"><span class="icon">◉</span><span>仪表盘</span></div>
-    <div class="nav-item" data-view="daily"><span class="icon">▦</span><span>每日取货</span></div>
+    <div class="nav-item" data-view="daily"><span class="icon">▦</span><span>出货交易</span></div>
     <div class="nav-item" data-view="customers"><span class="icon">◈</span><span>客户账本</span></div>
     <div class="nav-item" data-view="monthly"><span class="icon">▩</span><span>月度汇总</span></div>
 
@@ -925,24 +966,33 @@ select option { background: var(--bg-2); color: var(--text); }
       </div>
     </section>
 
-    <!-- Daily -->
+    <!-- Daily (出货交易记录) -->
     <section class="view" data-view="daily">
       <div class="page-head">
         <div>
-          <h1 class="page-title">每日取货记录</h1>
-          <div class="page-sub">每天录入一条，自动计算营收、成本、净利润</div>
+          <h1 class="page-title">出货交易记录</h1>
+          <div class="page-sub">选客户 → 输托盘数 → 系统自动按 £<span id="d-sell">265</span> × 托盘 扣除客户余额</div>
         </div>
       </div>
 
       <div class="card mb-4">
-        <div class="card-title">新增记录</div>
+        <div class="card-title">新增出货</div>
         <div class="form-grid">
           <div class="form-row"><label>日期</label><input type="date" id="d-date"></div>
-          <div class="form-row"><label>托盘数</label><input type="number" id="d-pallets" placeholder="24" min="0"></div>
-          <div class="form-row"><label>车次</label><input type="text" id="d-truck" placeholder="T-001"></div>
-          <div class="form-row"><label>备注（可选）</label><input type="text" id="d-notes" placeholder="备注"></div>
+          <div class="form-row"><label>客户</label>
+            <select id="d-customer" onchange="updatePickupPreview()">
+              <option value="">请选择客户…</option>
+            </select>
+          </div>
+          <div class="form-row"><label>托盘数</label><input type="number" id="d-pallets" placeholder="24" min="1" oninput="updatePickupPreview()"></div>
+          <div class="form-row"><label>车次（可选）</label><input type="text" id="d-truck" placeholder="T-001"></div>
+          <div class="form-row" style="grid-column: 1/-1;"><label>备注（可选）</label><input type="text" id="d-notes" placeholder="备注"></div>
         </div>
-        <div class="row"><button class="btn primary" onclick="addDaily()">＋ 添加记录</button></div>
+        <div id="d-preview" class="preview-box"></div>
+        <div class="row mt-4">
+          <button class="btn primary" onclick="addPickup()">＋ 添加出货</button>
+          <a class="btn ghost sm" onclick="switchView('customers')" style="cursor:pointer;">没有客户？去新建 →</a>
+        </div>
       </div>
 
       <div class="card">
@@ -950,7 +1000,7 @@ select option { background: var(--bg-2); color: var(--text); }
         <div class="table-wrap mt-4">
           <table>
             <thead><tr>
-              <th>日期</th><th>车次</th><th>托盘</th><th>营收</th><th>成本</th><th>中介费</th><th>净利润</th><th>备注</th><th></th>
+              <th>日期</th><th>客户</th><th>托盘</th><th>车次</th><th>扣款</th><th>成本</th><th>中介费</th><th>净利润</th><th>备注</th><th></th>
             </tr></thead>
             <tbody id="daily-body"></tbody>
           </table>
@@ -989,25 +1039,27 @@ select option { background: var(--bg-2); color: var(--text); }
 
           <div class="card-title mt-6">新增流水</div>
           <div class="form-grid mt-4">
-            <div class="form-row"><label>日期</label><input type="date" id="lg-date"></div>
+            <div class="form-row"><label>日期</label><input type="date" id="lg-date" oninput="updateLedgerPreview()"></div>
             <div class="form-row"><label>类型</label>
-              <select id="lg-type">
+              <select id="lg-type" onchange="updateLedgerForm()">
                 <option value="deposit">预付 (+)</option>
                 <option value="pickup">取货 (-)</option>
                 <option value="refund">退款 (-)</option>
                 <option value="adjust">调整 (±)</option>
               </select>
             </div>
-            <div class="form-row"><label>金额 £ (取货可留空)</label><input type="number" id="lg-amount" placeholder="自动按 265 × 托盘数"></div>
-            <div class="form-row"><label>托盘数（取货用）</label><input type="number" id="lg-pallets" placeholder="0" min="0"></div>
-            <div class="form-row"><label>备注</label><input type="text" id="lg-note" placeholder="备注"></div>
+            <div class="form-row" id="lg-amount-row"><label id="lg-amount-label">金额 £</label><input type="number" id="lg-amount" placeholder="0" oninput="updateLedgerPreview()"></div>
+            <div class="form-row row-hidden" id="lg-pallets-row"><label>托盘数</label><input type="number" id="lg-pallets" placeholder="24" min="1" oninput="updateLedgerPreview()"></div>
+            <div class="form-row row-hidden" id="lg-truck-row"><label>车次（可选）</label><input type="text" id="lg-truck" placeholder="T-001"></div>
+            <div class="form-row" style="grid-column: 1/-1;"><label>备注（可选）</label><input type="text" id="lg-note" placeholder="备注"></div>
           </div>
-          <div class="row"><button class="btn primary" onclick="addLedger()">＋ 添加流水</button></div>
+          <div id="lg-preview" class="preview-box"></div>
+          <div class="row mt-4"><button class="btn primary" onclick="addLedger()">＋ 添加流水</button></div>
 
           <div class="card-title mt-6">流水明细 <span class="badge" id="cd-count">0 条</span></div>
           <div class="table-wrap mt-4">
             <table>
-              <thead><tr><th>日期</th><th>类型</th><th>托盘</th><th>金额</th><th>余额</th><th>备注</th><th></th></tr></thead>
+              <thead><tr><th>日期</th><th>类型</th><th>托盘</th><th>车次</th><th>金额</th><th>余额</th><th>备注</th><th></th></tr></thead>
               <tbody id="ledger-body"></tbody>
             </table>
           </div>
@@ -1123,7 +1175,7 @@ select option { background: var(--bg-2); color: var(--text); }
 <!-- Mobile Nav -->
 <nav class="mobile-nav no-print" id="mobile-nav">
   <div class="mobile-nav-item active" data-view="dashboard"><span class="icon">◉</span><span>仪表盘</span></div>
-  <div class="mobile-nav-item" data-view="daily"><span class="icon">▦</span><span>每日</span></div>
+  <div class="mobile-nav-item" data-view="daily"><span class="icon">▦</span><span>出货</span></div>
   <div class="mobile-nav-item" data-view="customers"><span class="icon">◈</span><span>客户</span></div>
   <div class="mobile-nav-item" data-view="monthly"><span class="icon">▩</span><span>月度</span></div>
   <div class="mobile-nav-item" data-view="ai"><span class="icon">✦</span><span>AI</span></div>
@@ -1243,26 +1295,30 @@ function showApp() {
 // ============ DATA SYNC ============
 function seedData() {
   const today = new Date();
-  const daily = [];
+  const sellPrice = 265;
+  const cust1 = { id: crypto.randomUUID(), name: '示例客户A', createdAt: today.toISOString(), ledger: [] };
+
+  // Example deposit 30 days ago
+  const d30 = new Date(today); d30.setDate(d30.getDate() - 30);
+  cust1.ledger.push({ id: crypto.randomUUID(), date: d30.toISOString().slice(0,10), type: 'deposit', amount: 80000, pallets: 0, note: '示例预付' });
+
+  // Seed 30 days of pickups as ledger entries under this customer
   for (let i = 29; i >= 0; i--) {
     const d = new Date(today); d.setDate(d.getDate() - i);
     if (d.getDay() === 0) continue;
-    daily.push({
+    const pallets = 22 + Math.floor(Math.random() * 5);
+    cust1.ledger.push({
       id: crypto.randomUUID(),
       date: d.toISOString().slice(0,10),
-      pallets: 22 + Math.floor(Math.random() * 5),
+      type: 'pickup',
+      amount: pallets * sellPrice,
+      pallets,
       truck: 'T-' + String(100 + i).padStart(3, '0'),
-      notes: ''
+      note: ''
     });
   }
-  const cust1 = { id: crypto.randomUUID(), name: '示例客户A', createdAt: today.toISOString(), ledger: [] };
-  const d7 = new Date(today); d7.setDate(d7.getDate() - 7);
-  const d3 = new Date(today); d3.setDate(d3.getDate() - 3);
-  cust1.ledger.push({ id: crypto.randomUUID(), date: d7.toISOString().slice(0,10), type: 'deposit', amount: 31000, pallets: 0, note: '示例预付' });
-  cust1.ledger.push({ id: crypto.randomUUID(), date: d3.toISOString().slice(0,10), type: 'pickup', amount: 6360, pallets: 24, note: '' });
   return {
-    params: { buyPrice: 245, sellPrice: 265, myFee: 31, hugoFee: 7, vFee: 2 },
-    daily,
+    params: { buyPrice: 245, sellPrice, myFee: 31, hugoFee: 7, vFee: 2 },
     customers: [cust1]
   };
 }
@@ -1289,8 +1345,8 @@ async function loadUserData() {
       state = data.data;
       // Make sure schema fields exist
       if (!state.params) state.params = { buyPrice: 245, sellPrice: 265, myFee: 31, hugoFee: 7, vFee: 2 };
-      if (!state.daily) state.daily = [];
       if (!state.customers) state.customers = [];
+      migrateDailyToLedger();
     } else {
       // First-time user: seed with example data
       state = seedData();
@@ -1299,9 +1355,37 @@ async function loadUserData() {
   } catch (err) {
     console.error('Load failed:', err);
     // Fallback to empty state
-    state = { params: { buyPrice: 245, sellPrice: 265, myFee: 31, hugoFee: 7, vFee: 2 }, daily: [], customers: [] };
+    state = { params: { buyPrice: 245, sellPrice: 265, myFee: 31, hugoFee: 7, vFee: 2 }, customers: [] };
     setSyncStatus('error');
   }
+}
+
+// One-time migration: move legacy state.daily[] into a "未分类" customer's ledger
+function migrateDailyToLedger() {
+  if (!Array.isArray(state.daily) || state.daily.length === 0) {
+    if ('daily' in state) delete state.daily;
+    return;
+  }
+  let fallback = state.customers.find(c => c.name === '未分类');
+  if (!fallback) {
+    fallback = { id: crypto.randomUUID(), name: '未分类', createdAt: new Date().toISOString(), ledger: [] };
+    state.customers.push(fallback);
+  }
+  const sell = state.params.sellPrice || 265;
+  for (const r of state.daily) {
+    fallback.ledger.push({
+      id: r.id || crypto.randomUUID(),
+      date: r.date,
+      type: 'pickup',
+      amount: (r.pallets || 0) * sell,
+      pallets: r.pallets || 0,
+      truck: r.truck || '',
+      note: r.notes || r.note || ''
+    });
+  }
+  delete state.daily;
+  // Persist the migration
+  save();
 }
 
 let saveTimer = null;
@@ -1329,7 +1413,31 @@ async function saveUserDataNow() {
 const perPalletProfit = () => (state.params.sellPrice + state.params.myFee - state.params.buyPrice);
 const fmt = v => '£' + Math.round(v).toLocaleString('en-GB');
 
-function dailyMetrics(row) {
+// SINGLE SOURCE OF TRUTH — every pickup lives in a customer's ledger.
+// allPickups() flattens pickup-type ledger entries across all customers,
+// tagging each with customerId + customerName so the Daily view / charts /
+// monthly aggregates can treat them like the old state.daily[] array.
+function allPickups() {
+  const out = [];
+  for (const c of state.customers) {
+    for (const e of c.ledger) {
+      if (e.type !== 'pickup') continue;
+      out.push({
+        id: e.id,
+        date: e.date,
+        pallets: e.pallets || 0,
+        truck: e.truck || '',
+        note: e.note || '',
+        amount: e.amount || 0,
+        customerId: c.id,
+        customerName: c.name
+      });
+    }
+  }
+  return out;
+}
+
+function pickupMetrics(row) {
   const revenue = row.pallets * state.params.sellPrice;
   const cost = row.pallets * state.params.buyPrice;
   const fee = row.pallets * state.params.myFee;
@@ -1352,10 +1460,10 @@ function allBalance() { return state.customers.reduce((s, c) => s + customerBala
 
 function monthlyAgg() {
   const map = {};
-  for (const r of state.daily) {
+  for (const r of allPickups()) {
     const key = r.date.slice(0, 7);
     if (!map[key]) map[key] = { month: key, pallets: 0, revenue: 0, cost: 0, fee: 0, profit: 0 };
-    const m = dailyMetrics(r);
+    const m = pickupMetrics(r);
     map[key].pallets += r.pallets;
     map[key].revenue += m.revenue;
     map[key].cost += m.cost;
@@ -1366,15 +1474,16 @@ function monthlyAgg() {
 }
 
 function totals() {
+  const pickups = allPickups();
   let pallets = 0, revenue = 0, cost = 0, fee = 0, profit = 0;
-  for (const r of state.daily) {
-    const m = dailyMetrics(r);
+  for (const r of pickups) {
+    const m = pickupMetrics(r);
     pallets += r.pallets; revenue += m.revenue; cost += m.cost; fee += m.fee; profit += m.profit;
   }
   const now = new Date(); const ym = now.toISOString().slice(0, 7);
-  const thisMonth = state.daily.filter(r => r.date.startsWith(ym));
+  const thisMonth = pickups.filter(r => r.date.startsWith(ym));
   let mPallets = 0, mProfit = 0;
-  for (const r of thisMonth) { const m = dailyMetrics(r); mPallets += r.pallets; mProfit += m.profit; }
+  for (const r of thisMonth) { const m = pickupMetrics(r); mPallets += r.pallets; mProfit += m.profit; }
   return { pallets, revenue, cost, fee, profit, mPallets, mProfit };
 }
 
@@ -1427,23 +1536,44 @@ function renderKpis() {
 }
 
 function renderDaily() {
-  const rows = [...state.daily].sort((a, b) => b.date.localeCompare(a.date));
+  // Update sell price display in page header hint
+  const sellEl = document.getElementById('d-sell');
+  if (sellEl) sellEl.textContent = state.params.sellPrice;
+
+  // Populate customer <select>
+  const sel = document.getElementById('d-customer');
+  if (sel) {
+    const prev = sel.value;
+    const opts = ['<option value="">请选择客户…</option>'];
+    for (const c of state.customers) {
+      const bal = customerBalance(c);
+      opts.push(`<option value="${c.id}">${escapeHtml(c.name)} · 余额 ${fmt(bal)}</option>`);
+    }
+    sel.innerHTML = opts.join('');
+    if (prev && state.customers.find(c => c.id === prev)) sel.value = prev;
+  }
+
+  const rows = allPickups().sort((a, b) => b.date.localeCompare(a.date));
   document.getElementById('daily-count').textContent = rows.length + ' 条';
   const body = rows.map(r => {
-    const m = dailyMetrics(r);
+    const m = pickupMetrics(r);
     return `<tr>
       <td>${r.date}</td>
-      <td class="dim">${escapeHtml(r.truck || '-')}</td>
+      <td><b>${escapeHtml(r.customerName)}</b></td>
       <td><b>${r.pallets}</b></td>
-      <td>${fmt(m.revenue)}</td>
+      <td class="dim">${escapeHtml(r.truck || '-')}</td>
+      <td class="neg">-${fmt(r.amount)}</td>
       <td class="dim">${fmt(m.cost)}</td>
       <td>${fmt(m.fee)}</td>
       <td class="pos">${fmt(m.profit)}</td>
-      <td class="dim">${escapeHtml(r.notes || '')}</td>
-      <td><button class="btn sm danger" onclick="delDaily('${r.id}')">删</button></td>
+      <td class="dim">${escapeHtml(r.note || '')}</td>
+      <td><button class="btn sm danger" onclick="delPickup('${r.customerId}','${r.id}')">删</button></td>
     </tr>`;
   }).join('');
-  document.getElementById('daily-body').innerHTML = body || `<tr><td colspan="9" class="dim" style="text-align:center;padding:40px;">暂无记录</td></tr>`;
+  document.getElementById('daily-body').innerHTML = body || `<tr><td colspan="10" class="dim" style="text-align:center;padding:40px;">暂无记录</td></tr>`;
+
+  // Refresh live preview in case customer/sell changed
+  updatePickupPreview();
 }
 
 function renderCustomers() {
@@ -1483,18 +1613,21 @@ function renderCustomerDetail() {
     const [label, cls] = typeMap[e.type] || ['?', 'badge-adjust'];
     const sign = e.type === 'deposit' ? '+' : '-';
     const amtCls = e.type === 'deposit' ? 'pos' : 'neg';
+    const runCls = running < 0 ? 'neg' : '';
     return { html: `<tr>
       <td>${e.date}</td>
       <td><span class="badge-type ${cls}">${label}</span></td>
       <td>${e.pallets || '-'}</td>
+      <td class="dim">${escapeHtml(e.truck || '-')}</td>
       <td class="${amtCls}">${sign}${fmt(e.amount)}</td>
-      <td><b>${fmt(running)}</b></td>
+      <td class="${runCls}"><b>${fmt(running)}</b></td>
       <td class="dim">${escapeHtml(e.note || '')}</td>
       <td><button class="btn sm danger" onclick="delLedger('${e.id}')">删</button></td>
     </tr>`, id: e.id };
   });
   const reversed = [...rowsHtml].reverse();
-  document.getElementById('ledger-body').innerHTML = reversed.map(x => x.html).join('') || `<tr><td colspan="7" class="dim" style="text-align:center;padding:30px;">暂无流水</td></tr>`;
+  document.getElementById('ledger-body').innerHTML = reversed.map(x => x.html).join('') || `<tr><td colspan="8" class="dim" style="text-align:center;padding:30px;">暂无流水</td></tr>`;
+  updateLedgerPreview();
 }
 
 function renderMonthly() {
@@ -1580,7 +1713,15 @@ function renderCharts() {
     }
   });
 
-  const last30 = [...state.daily].sort((a,b) => a.date.localeCompare(b.date)).slice(-30);
+  // Aggregate pickups by date for the last 30 active days
+  const byDate = {};
+  for (const r of allPickups()) {
+    byDate[r.date] = (byDate[r.date] || 0) + r.pallets;
+  }
+  const last30 = Object.entries(byDate)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .slice(-30)
+    .map(([date, pallets]) => ({ date, pallets }));
   const ctx3 = document.getElementById('chart-pallets');
   if (charts.pal) charts.pal.destroy();
   charts.pal = new Chart(ctx3, {
@@ -1602,9 +1743,9 @@ function renderCharts() {
     options: chartOpts
   });
 
-  const sorted = [...state.daily].sort((a,b) => a.date.localeCompare(b.date));
+  const sorted = allPickups().sort((a,b) => a.date.localeCompare(b.date));
   let cum = 0;
-  const cumData = sorted.map(r => { cum += dailyMetrics(r).profit; return cum; });
+  const cumData = sorted.map(r => { cum += pickupMetrics(r).profit; return cum; });
   const ctx4 = document.getElementById('chart-cumprofit');
   if (charts.cum) charts.cum.destroy();
   charts.cum = new Chart(ctx4, {
@@ -1627,21 +1768,65 @@ function renderCharts() {
 }
 
 // ============ ACTIONS ============
-function addDaily() {
+function updatePickupPreview() {
+  const box = document.getElementById('d-preview');
+  if (!box) return;
+  const cid = document.getElementById('d-customer').value;
+  const pallets = parseInt(document.getElementById('d-pallets').value) || 0;
+  if (!cid || !pallets) {
+    box.classList.remove('show', 'danger');
+    box.innerHTML = '';
+    return;
+  }
+  const c = state.customers.find(x => x.id === cid);
+  if (!c) return;
+  const sell = state.params.sellPrice;
+  const deduction = pallets * sell;
+  const bal = customerBalance(c);
+  const after = bal - deduction;
+  const profit = pallets * perPalletProfit();
+  const overdraft = after < 0;
+  box.classList.add('show');
+  box.classList.toggle('danger', overdraft);
+  const afterCls = overdraft ? 'neg' : (after < sell * 3 ? 'warn' : 'pos');
+  box.innerHTML = `
+    <div class="pv-row"><span class="pv-k">出货金额 (${pallets} × £${sell})</span><span class="pv-v neg">-${fmt(deduction)}</span></div>
+    <div class="pv-row"><span class="pv-k">${escapeHtml(c.name)} 当前余额</span><span class="pv-v">${fmt(bal)}</span></div>
+    <div class="pv-row"><span class="pv-k">出货后余额</span><span class="pv-v ${afterCls}">${fmt(after)}</span></div>
+    <div class="pv-row"><span class="pv-k">本次毛利</span><span class="pv-v pos">+${fmt(profit)}</span></div>
+    <div class="pv-warning">⚠ 余额将为负（${fmt(after)}）— 客户透支！可以保存，但建议先催款或预付。</div>
+  `;
+}
+
+function addPickup() {
   const date = document.getElementById('d-date').value;
+  const cid = document.getElementById('d-customer').value;
   const pallets = parseInt(document.getElementById('d-pallets').value);
-  const truck = document.getElementById('d-truck').value;
-  const notes = document.getElementById('d-notes').value;
-  if (!date || !pallets) { alert('请填写日期和托盘数'); return; }
-  state.daily.push({ id: crypto.randomUUID(), date, pallets, truck, notes });
+  const truck = document.getElementById('d-truck').value.trim();
+  const note = document.getElementById('d-notes').value.trim();
+  if (!date) { alert('请选择日期'); return; }
+  if (!cid) { alert('请选择客户（没有客户请先到"客户账本"新建）'); return; }
+  if (!pallets || pallets <= 0) { alert('请填写托盘数（>0）'); return; }
+  const c = state.customers.find(x => x.id === cid);
+  if (!c) { alert('客户不存在'); return; }
+  const amount = pallets * state.params.sellPrice;
+  c.ledger.push({
+    id: crypto.randomUUID(),
+    date, type: 'pickup', amount, pallets, truck, note
+  });
+  // Reset form (keep customer selected for rapid entry)
   document.getElementById('d-pallets').value = '';
   document.getElementById('d-truck').value = '';
   document.getElementById('d-notes').value = '';
   save(); renderAll();
+  flash('已记录：' + c.name + ' × ' + pallets + ' 托盘');
 }
-function delDaily(id) {
-  if (!confirm('确定删除？')) return;
-  state.daily = state.daily.filter(r => r.id !== id);
+
+function delPickup(customerId, id) {
+  if (!confirm('确定删除这条出货记录？（客户账本也会同步删除）')) return;
+  const c = state.customers.find(x => x.id === customerId);
+  if (!c) return;
+  c.ledger = c.ledger.filter(e => e.id !== id);
   save(); renderAll();
 }
 
@@ -1662,6 +1847,13 @@ function openCustomer(id) {
   document.querySelector('[data-view="customers"] .page-head button').classList.add('hide');
   document.getElementById('customer-detail').classList.remove('hide');
   document.getElementById('lg-date').value = new Date().toISOString().slice(0, 10);
+  // Reset ledger form to default (deposit mode)
+  document.getElementById('lg-type').value = 'deposit';
+  document.getElementById('lg-amount').value = '';
+  document.getElementById('lg-pallets').value = '';
+  if (document.getElementById('lg-truck')) document.getElementById('lg-truck').value = '';
+  document.getElementById('lg-note').value = '';
+  updateLedgerForm();
   renderCustomerDetail();
 }
 function closeCustomerDetail() {
@@ -1677,28 +1869,130 @@ function deleteCustomer() {
   state.customers = state.customers.filter(c => c.id !== currentCustomer);
   closeCustomerDetail(); save(); renderAll();
 }
+// Show/hide fields based on selected ledger type
+function updateLedgerForm() {
+  const t = document.getElementById('lg-type').value;
+  const amountRow = document.getElementById('lg-amount-row');
+  const palletsRow = document.getElementById('lg-pallets-row');
+  const truckRow = document.getElementById('lg-truck-row');
+  const amountLbl = document.getElementById('lg-amount-label');
+  const amountInp = document.getElementById('lg-amount');
+
+  if (t === 'pickup') {
+    // Pickup: pallets + truck shown, amount auto-computed and read-only
+    amountRow.classList.add('row-hidden');
+    palletsRow.classList.remove('row-hidden');
+    truckRow.classList.remove('row-hidden');
+  } else if (t === 'deposit') {
+    amountLbl.textContent = '金额 £ (预付入账)';
+    amountInp.placeholder = '例如 10000';
+    amountRow.classList.remove('row-hidden');
+    palletsRow.classList.add('row-hidden');
+    truckRow.classList.add('row-hidden');
+  } else if (t === 'refund') {
+    amountLbl.textContent = '金额 £ (退款)';
+    amountInp.placeholder = '例如 500';
+    amountRow.classList.remove('row-hidden');
+    palletsRow.classList.add('row-hidden');
+    truckRow.classList.add('row-hidden');
+  } else if (t === 'adjust') {
+    amountLbl.textContent = '金额 £ (+ 为加 / - 为减)';
+    amountInp.placeholder = '例如 -50 或 120';
+    amountRow.classList.remove('row-hidden');
+    palletsRow.classList.add('row-hidden');
+    truckRow.classList.add('row-hidden');
+  }
+  updateLedgerPreview();
+}
+
+function updateLedgerPreview() {
+  const box = document.getElementById('lg-preview');
+  if (!box || !currentCustomer) return;
+  const c = state.customers.find(x => x.id === currentCustomer);
+  if (!c) { box.classList.remove('show', 'danger'); box.innerHTML = ''; return; }
+  const t = document.getElementById('lg-type').value;
+  const amt = parseFloat(document.getElementById('lg-amount').value) || 0;
+  const pallets = parseInt(document.getElementById('lg-pallets').value) || 0;
+  const bal = customerBalance(c);
+  let delta = 0, label = '';
+  if (t === 'pickup') {
+    if (!pallets) { box.classList.remove('show', 'danger'); box.innerHTML = ''; return; }
+    delta = -pallets * state.params.sellPrice;
+    label = `取货 ${pallets} × £${state.params.sellPrice}`;
+  } else if (t === 'deposit') {
+    if (!amt) { box.classList.remove('show', 'danger'); box.innerHTML = ''; return; }
+    delta = Math.abs(amt);
+    label = '预付入账';
+  } else if (t === 'refund') {
+    if (!amt) { box.classList.remove('show', 'danger'); box.innerHTML = ''; return; }
+    delta = -Math.abs(amt);
+    label = '退款';
+  } else if (t === 'adjust') {
+    if (!amt) { box.classList.remove('show', 'danger'); box.innerHTML = ''; return; }
+    delta = amt; // signed
+    label = '调整';
+  }
+  const after = bal + delta;
+  const overdraft = after < 0;
+  box.classList.add('show');
+  box.classList.toggle('danger', overdraft);
+  const afterCls = overdraft ? 'neg' : (after < state.params.sellPrice * 3 ? 'warn' : 'pos');
+  const deltaCls = delta < 0 ? 'neg' : 'pos';
+  box.innerHTML = `
+    <div class="pv-row"><span class="pv-k">${label}</span><span class="pv-v ${deltaCls}">${delta >= 0 ? '+' : ''}${fmt(delta)}</span></div>
+    <div class="pv-row"><span class="pv-k">变动前余额</span><span class="pv-v">${fmt(bal)}</span></div>
+    <div class="pv-row"><span class="pv-k">变动后余额</span><span class="pv-v ${afterCls}">${fmt(after)}</span></div>
+    <div class="pv-warning">⚠ 余额将为负（${fmt(after)}）— 客户透支！可以保存，但建议先催款或预付。</div>
+  `;
+}
+
 function addLedger() {
   if (!currentCustomer) return;
   const c = state.customers.find(x => x.id === currentCustomer);
+  if (!c) return;
   const date = document.getElementById('lg-date').value;
   const type = document.getElementById('lg-type').value;
-  let amount = parseFloat(document.getElementById('lg-amount').value) || 0;
+  const rawAmt = parseFloat(document.getElementById('lg-amount').value);
   const pallets = parseInt(document.getElementById('lg-pallets').value) || 0;
-  const note = document.getElementById('lg-note').value;
+  const truck = (document.getElementById('lg-truck').value || '').trim();
+  const note = document.getElementById('lg-note').value.trim();
   if (!date) { alert('请填写日期'); return; }
-  if (type === 'pickup' && pallets > 0 && !amount) amount = pallets * state.params.sellPrice;
-  if (!amount && type !== 'adjust') { alert('请填写金额或托盘数'); return; }
-  c.ledger.push({ id: crypto.randomUUID(), date, type, amount: Math.abs(amount), pallets, note });
+
+  let entry = null;
+  if (type === 'pickup') {
+    if (!pallets || pallets <= 0) { alert('取货请填托盘数 (>0)'); return; }
+    entry = {
+      id: crypto.randomUUID(), date, type: 'pickup',
+      amount: pallets * state.params.sellPrice,
+      pallets, truck, note
+    };
+  } else if (type === 'deposit') {
+    if (!rawAmt || rawAmt <= 0) { alert('预付金额必须 > 0'); return; }
+    entry = { id: crypto.randomUUID(), date, type: 'deposit', amount: Math.abs(rawAmt), pallets: 0, note };
+  } else if (type === 'refund') {
+    if (!rawAmt || rawAmt <= 0) { alert('退款金额必须 > 0'); return; }
+    entry = { id: crypto.randomUUID(), date, type: 'refund', amount: Math.abs(rawAmt), pallets: 0, note };
+  } else if (type === 'adjust') {
+    if (!rawAmt || rawAmt === 0) { alert('调整金额不能为 0（+ 为加 / - 为减）'); return; }
+    // Signed: store as positive amount; direction conveyed via a second "sub-type"
+    // Simpler: keep same storage shape — use deposit for positive, refund for negative
+    if (rawAmt > 0) entry = { id: crypto.randomUUID(), date, type: 'deposit', amount: rawAmt, pallets: 0, note: '调整：' + note };
+    else entry = { id: crypto.randomUUID(), date, type: 'refund', amount: Math.abs(rawAmt), pallets: 0, note: '调整：' + note };
+  }
+  if (!entry) return;
+  c.ledger.push(entry);
   document.getElementById('lg-amount').value = '';
   document.getElementById('lg-pallets').value = '';
+  document.getElementById('lg-truck').value = '';
   document.getElementById('lg-note').value = '';
-  save(); renderCustomerDetail(); renderKpis(); renderCharts();
+  save(); renderAll();
+  flash('已添加流水');
 }
 function delLedger(id) {
-  if (!confirm('删除这条流水？')) return;
+  if (!confirm('删除这条流水？（如果是出货，交易记录会同步删除）')) return;
   const c = state.customers.find(x => x.id === currentCustomer);
   c.ledger = c.ledger.filter(e => e.id !== id);
-  save(); renderCustomerDetail(); renderKpis(); renderCharts();
+  save(); renderAll();
 }
 
 function saveSettings() {
@@ -1713,7 +2007,7 @@ function saveSettings() {
 
 function resetAll() {
   if (!confirm('清空你的全部数据？此操作不可撤销')) return;
-  state = { params: { buyPrice: 245, sellPrice: 265, myFee: 31, hugoFee: 7, vFee: 2 }, daily: [], customers: [] };
+  state = { params: { buyPrice: 245, sellPrice: 265, myFee: 31, hugoFee: 7, vFee: 2 }, customers: [] };
   save(); renderAll();
 }
 
@@ -1751,7 +2045,7 @@ function analyzeRules() {
     else if (b > 0 && b < state.params.sellPrice * 5) insights.push({ type: 'warn', title: `${c.name} 余额偏低 (${fmt(b)})`, text: '只够买 ' + Math.floor(b / state.params.sellPrice) + ' 个托盘，建议提前提醒客户续预付。' });
   }
 
-  const last7 = [...state.daily].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 7);
+  const last7 = allPickups().sort((a,b) => b.date.localeCompare(a.date)).slice(0, 7);
   if (last7.length) {
     const avg = last7.reduce((s, r) => s + r.pallets, 0) / last7.length;
     if (avg < 22) insights.push({ type: 'warn', title: `卡车装载率偏低（均 ${avg.toFixed(1)} 托盘）`, text: '每车理论上能拉 24-26 个托盘，少拉一个 = 少赚 £' + perPalletProfit() + '。核对装车流程。' });
@@ -1835,7 +2129,7 @@ async function runAI() {
   lines.push('⚠ 现金流管理：客户预付款是别人的钱，不要当作利润花掉。');
 
   lines.push('\n【下周目标】');
-  const avg7 = [...state.daily].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 7);
+  const avg7 = allPickups().sort((a,b) => b.date.localeCompare(a.date)).slice(0, 7);
   const avgP = avg7.length ? avg7.reduce((s, r) => s + r.pallets, 0) / avg7.length : 24;
   const targetP = Math.ceil(avgP) + 1;
   lines.push(`目标每日托盘 ${targetP}，周利润目标 £${Math.round(targetP * 6 * perPalletProfit()).toLocaleString()}。`);
@@ -1932,7 +2226,7 @@ async function enterApp(session) {
     ]);
   } catch (err) {
     console.error('[pallet] data load failed:', err);
-    if (!state) state = { params: { buyPrice: 245, sellPrice: 265, myFee: 31, hugoFee: 7, vFee: 2 }, daily: [], customers: [] };
+    if (!state) state = { params: { buyPrice: 245, sellPrice: 265, myFee: 31, hugoFee: 7, vFee: 2 }, customers: [] };
     setSyncStatus('error');
   }
   try {
